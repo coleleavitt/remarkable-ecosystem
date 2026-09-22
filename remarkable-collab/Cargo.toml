@@ -1,0 +1,57 @@
+[package]
+name = "remarkable-collab"
+version = "0.1.0"
+edition = "2024"
+authors = ["Cole Leavitt"]
+description = "Real-time collaboration server for reMarkable documents using CRDT"
+license = "MIT"
+repository = "https://github.com/coleleavitt/remarkable-collab"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.45", features = ["full"] }
+
+# WebSocket
+futures-util = "0.3"
+
+# HTTP server (for web client hosting)
+axum = { version = "0.8", features = ["ws", "tokio"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["fs", "cors"] }
+
+# HTTP client (for remarkable-server integration)
+reqwest = { version = "0.12", features = ["json"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# UUID generation
+uuid = { version = "1.16", features = ["v4", "serde"] }
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+pretty_assertions = "1.4"
+
+[[bin]]
+name = "remarkable-collab"
+path = "src/main.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

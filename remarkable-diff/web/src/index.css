@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --rm-page-width: 1404px;
+  --rm-page-height: 1872px;
+}
+
+body {
+  @apply bg-gray-950 text-gray-100;
+}
+
+.stroke-added {
+  stroke: #22c55e;
+  stroke-opacity: 0.8;
+}
+
+.stroke-removed {
+  stroke: #ef4444;
+  stroke-opacity: 0.8;
+}
+
+.stroke-modified {
+  stroke: #f59e0b;
+  stroke-opacity: 0.8;
+}
+
+.stroke-unchanged {
+  stroke: #64748b;
+  stroke-opacity: 0.4;
+}
+
+/* Timeline */
+.timeline-event {
+  @apply relative pl-6 py-2 border-l-2 border-gray-700;
+}
+
+.timeline-event::before {
+  @apply absolute left-[-5px] top-3 w-2 h-2 rounded-full bg-gray-500;
+  content: '';
+}
+
+.timeline-event.addition::before {
+  @apply bg-green-500;
+}
+
+.timeline-event.deletion::before {
+  @apply bg-red-500;
+}
+
+.timeline-event.modification::before {
+  @apply bg-amber-500;
+}

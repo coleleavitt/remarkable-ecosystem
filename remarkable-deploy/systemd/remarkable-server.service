@@ -1,0 +1,56 @@
+[Unit]
+Description=reMarkable Local Sync Server
+Documentation=https://github.com/coleleavitt/remarkable-server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=remarkable
+Group=remarkable
+
+# Environment
+EnvironmentFile=-/etc/remarkable-server/env
+Environment=RM_HOST=0.0.0.0
+Environment=RM_PORT=8080
+Environment=RM_DATA_DIR=/var/lib/remarkable-server
+Environment=RM_CERTS_DIR=/etc/remarkable-server/certs
+Environment=RM_LOG_LEVEL=info
+
+# Working directory
+WorkingDirectory=/opt/remarkable-server
+
+# Run command
+ExecStartPre=/opt/remarkable-server/venv/bin/python -c "from remarkable.server import ensure_dirs; ensure_dirs()"
+ExecStart=/opt/remarkable-server/venv/bin/python -m remarkable.server \
+    --host ${RM_HOST} \
+    --port ${RM_PORT} \
+    --data-dir ${RM_DATA_DIR} \
+    --certs-dir ${RM_CERTS_DIR} \
+    --log-level ${RM_LOG_LEVEL}
+
+# Restart policy
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ReadWritePaths=/var/lib/remarkable-server /etc/remarkable-server/certs
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+# Resource limits
+MemoryMax=512M
+CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target

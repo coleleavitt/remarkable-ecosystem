@@ -1,0 +1,83 @@
+# remarkable-server production stack
+# Usage: docker compose up -d
+
+name: remarkable
+
+services:
+  server:
+    build: .
+    image: remarkable-server:latest
+    container_name: remarkable-server
+    restart: unless-stopped
+    environment:
+      - RM_HOST=0.0.0.0
+      - RM_PORT=8080
+      - RM_DATA_DIR=/data
+      - RM_CERTS_DIR=/certs
+      - RM_LOG_LEVEL=${RM_LOG_LEVEL:-info}
+    volumes:
+      - remarkable-data:/data
+      - remarkable-certs:/certs
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "com.remarkable.service=sync-server"
+    networks:
+      - remarkable
+
+  portal:
+    build:
+      context: ./portal
+      dockerfile: Dockerfile
+    image: remarkable-portal:latest
+    container_name: remarkable-portal
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=http://server:8080
+      - NODE_ENV=production
+    expose:
+      - "3000"
+    depends_on:
+      server:
+        condition: service_healthy
+    labels:
+      - "com.remarkable.service=web-portal"
+    networks:
+      - remarkable
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: remarkable-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - server
+      - portal
+    networks:
+      - remarkable
+
+volumes:
+  remarkable-data:
+    driver: local
+  remarkable-certs:
+    driver: local
+  caddy-data:
+    driver: local
+  caddy-config:
+    driver: local
+
+networks:
+  remarkable:
+    driver: bridge

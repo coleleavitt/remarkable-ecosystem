@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>reMarkable Collab</title>
+    <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-tertiary: #0f3460;
+            --text-primary: #eee;
+            --text-secondary: #888;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --success: #4ade80;
+            --error: #f87171;
+            --warning: #fbbf24;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        /* Header */
+        header {
+            background: var(--bg-secondary);
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--bg-tertiary);
+            z-index: 100;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .logo svg {
+            width: 28px;
+            height: 28px;
+        }
+        
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--error);
+        }
+        
+        .status-dot.connected {
+            background: var(--success);
+        }
+        
+        /* Main Layout */
+        .main-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--bg-tertiary);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sidebar-section {
+            padding: 1rem;
+            border-bottom: 1px solid var(--bg-tertiary);
+        }
+        
+        .sidebar-section h3 {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: 0.75rem;
+        }
+        
+        /* Join Form */
+        .join-form input {
+            width: 100%;
+            padding: 0.625rem 0.875rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 6px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+        
+        .join-form input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .join-form button {
+            width: 100%;
+            padding: 0.625rem;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .join-form button:hover {
+            background: var(--accent-hover);
+        }
+        
+        .join-form button:disabled {
+            background: #4b5563;
+            cursor: not-allowed;
+        }
+        
+        /* Users List */
+        .users-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .user-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+        }
+        
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: white;
+        }
+        
+        .user-info {
+            flex: 1;
+        }
+        
+        .user-name {
+            font-size: 0.9rem;
+        }
+        
+        .user-status {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+        
+        .user-you {
+            font-size: 0.7rem;
+            background: var(--accent);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        
+        /* Toolbar */
+        .toolbar {
+            background: var(--bg-secondary);
+            padding: 0.5rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-bottom: 1px solid var(--bg-tertiary);
+        }
+        
+        .tool-group {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            padding: 0 0.5rem;
+            border-right: 1px solid var(--bg-tertiary);
+        }
+        
+        .tool-group:last-child {
+            border-right: none;
+        }
+        
+        .tool-btn {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .tool-btn:hover {
+            background: var(--bg-tertiary);
+        }
+        
+        .tool-btn.active {
+            background: var(--accent);
+        }
+        
+        .tool-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        /* Canvas */
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            background: #fff;
+            overflow: hidden;
+        }
+        
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        #cursor-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+        
+        /* Cursor Labels */
+        .cursor-label {
+            position: absolute;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: white;
+            pointer-events: none;
+            white-space: nowrap;
+            transform: translate(8px, -8px);
+        }
+        
+        /* Color Picker */
+        .color-picker {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .color-swatch {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .color-swatch:hover {
+            transform: scale(1.1);
+        }
+        
+        .color-swatch.active {
+            border-color: var(--accent);
+        }
+        
+        /* Width Slider */
+        .width-slider {
+            width: 100px;
+        }
+        
+        .width-slider input {
+            width: 100%;
+        }
+        
+        /* Stats */
+        .stats {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        /* Log Panel */
+        .log-panel {
+            max-height: 150px;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--bg-tertiary);
+            overflow-y: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.8rem;
+            padding: 0.5rem 1rem;
+        }
+        
+        .log-entry {
+            padding: 2px 0;
+            opacity: 0.8;
+        }
+        
+        .log-entry.info { color: #60a5fa; }
+        .log-entry.success { color: #4ade80; }
+        .log-entry.error { color: #f87171; }
+        .log-entry.op { color: #fbbf24; }
+        
+        /* Layer Panel */
+        .layer-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .layer-item:hover {
+            background: var(--bg-tertiary);
+        }
+        
+        .layer-item.active {
+            background: var(--accent);
+        }
+        
+        /* Undo/Redo buttons */
+        .undo-redo {
+            display: flex;
+            gap: 4px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.5 3h-15A1.5 1.5 0 003 4.5v15A1.5 1.5 0 004.5 21h15a1.5 1.5 0 001.5-1.5v-15A1.5 1.5 0 0019.5 3zm-15 1.5h15v15h-15z"/>
+                <path d="M7 7l10 10M7 17l10-10" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            </svg>
+            reMarkable Collab
+        </div>
+        
+        <div class="header-controls">
+            <div class="stats">
+                <div class="stat-item">
+                    <span>Ops:</span>
+                    <span id="op-count">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Gen:</span>
+                    <span id="gen-count">0</span>
+                </div>
+            </div>
+            
+            <div class="connection-status">
+                <div class="status-dot" id="status-dot"></div>
+                <span id="status-text">Disconnected</span>
+            </div>
+        </div>
+    </header>
+    
+    <div class="main-container">
+        <aside class="sidebar">
+            <div class="sidebar-section join-form">
+                <h3>Join Session</h3>
+                <input type="text" id="server-url" placeholder="Server URL" value="ws://localhost:8090/ws">
+                <input type="text" id="doc-id" placeholder="Document ID">
+                <input type="text" id="user-name" placeholder="Your Name">
+                <button id="join-btn" onclick="toggleConnection()">Connect</button>
+            </div>
+            
+            <div class="sidebar-section">
+                <h3>Collaborators</h3>
+                <div class="users-list" id="users-list">
+                    <div class="user-item" style="color: var(--text-secondary); font-style: italic;">
+                        No users connected
+                    </div>
+                </div>
+            </div>
+            
+            <div class="sidebar-section">
+                <h3>Layers</h3>
+                <div id="layers-list">
+                    <div class="layer-item active">
+                        <span>🖼️</span>
+                        <span>Layer 1</span>
+                    </div>
+                </div>
+            </div>
+        </aside>
+        
+        <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+            <div class="toolbar">
+                <div class="tool-group">
+                    <button class="tool-btn active" id="tool-pen" onclick="setTool('pen')" title="Pen">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+                            <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+                            <path d="M2 2l7.586 7.586"/>
+                        </svg>
+                    </button>
+                    <button class="tool-btn" id="tool-marker" onclick="setTool('marker')" title="Marker">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="14" width="4" height="7" rx="1"/>
+                            <path d="M5 14V6a2 2 0 012-2h10a2 2 0 012 2v8"/>
+                            <path d="M17 14v7"/>
+                        </svg>
+                    </button>
+                    <button class="tool-btn" id="tool-eraser" onclick="setTool('eraser')" title="Eraser">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M7 21h10"/>
+                            <path d="M5.5 11.5L16.5 3.5l4 4-11 8-4.5.5.5-4.5z"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="tool-group color-picker">
+                    <div class="color-swatch active" style="background: #000" data-color="black" onclick="setColor(this)"></div>
+                    <div class="color-swatch" style="background: #666" data-color="gray" onclick="setColor(this)"></div>
+                    <div class="color-swatch" style="background: #3b82f6" data-color="blue" onclick="setColor(this)"></div>
+                    <div class="color-swatch" style="background: #ef4444" data-color="red" onclick="setColor(this)"></div>
+                    <div class="color-swatch" style="background: #22c55e" data-color="green" onclick="setColor(this)"></div>
+                    <div class="color-swatch" style="background: #f59e0b" data-color="yellow" onclick="setColor(this)"></div>
+                </div>
+                
+                <div class="tool-group width-slider">
+                    <input type="range" min="1" max="20" value="3" id="stroke-width" oninput="setStrokeWidth(this.value)">
+                </div>
+                
+                <div class="tool-group undo-redo">
+                    <button class="tool-btn" onclick="undo()" title="Undo (Ctrl+Z)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 10h10a5 5 0 015 5v2"/>
+                            <path d="M7 6L3 10l4 4"/>
+                        </svg>
+                    </button>
+                    <button class="tool-btn" onclick="redo()" title="Redo (Ctrl+Y)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 10H11a5 5 0 00-5 5v2"/>
+                            <path d="M17 6l4 4-4 4"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="canvas-container" id="canvas-container">
+                <canvas id="canvas"></canvas>
+                <canvas id="cursor-canvas"></canvas>
+            </div>
+            
+            <div class="log-panel" id="log-panel"></div>
+        </div>
+    </div>
+    
+    <script>
+        // State
+        let ws = null;
+        let connected = false;
+        let userId = null;
+        let authorId = null;
+        let currentTool = 'pen';
+        let currentColor = 'black';
+        let strokeWidth = 3;
+        let isDrawing = false;
+        let currentStroke = [];
+        let strokes = [];
+        let users = {};
+        let cursors = {};
+        let opCount = 0;
+        let generation = 0;
+        
+        // Canvas setup
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const cursorCanvas = document.getElementById('cursor-canvas');
+        const cursorCtx = cursorCanvas.getContext('2d');
+        
+        const colorMap = {
+            'black': '#000000',
+            'gray': '#666666',
+            'blue': '#3b82f6',
+            'red': '#ef4444',
+            'green': '#22c55e',
+            'yellow': '#f59e0b',
+            'white': '#ffffff'
+        };
+        
+        function resizeCanvas() {
+            const container = document.getElementById('canvas-container');
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            cursorCanvas.width = rect.width;
+            cursorCanvas.height = rect.height;
+            redraw();
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        
+        // Logging
+        function log(msg, type = 'info') {
+            const panel = document.getElementById('log-panel');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            panel.insertBefore(entry, panel.firstChild);
+            if (panel.children.length > 100) {
+                panel.removeChild(panel.lastChild);
+            }
+        }
+        
+        // Connection management
+        function toggleConnection() {
+            if (connected) {
+                disconnect();
+            } else {
+                connect();
+            }
+        }
+        
+        function connect() {
+            const serverUrl = document.getElementById('server-url').value;
+            const docId = document.getElementById('doc-id').value || crypto.randomUUID();
+            const userName = document.getElementById('user-name').value || 'Anonymous';
+            
+            document.getElementById('doc-id').value = docId;
+            document.getElementById('join-btn').disabled = true;
+            
+            try {
+                ws = new WebSocket(serverUrl);
+                
+                ws.onopen = () => {
+                    log('Connected to server', 'success');
+                    updateConnectionStatus(true);
+                    
+                    ws.send(JSON.stringify({
+                        type: 'join_session',
+                        document_id: docId,
+                        user_name: userName
+                    }));
+                };
+                
+                ws.onmessage = (e) => {
+                    const msg = JSON.parse(e.data);
+                    handleMessage(msg);
+                };
+                
+                ws.onclose = () => {
+                    log('Disconnected from server', 'error');
+                    updateConnectionStatus(false);
+                };
+                
+                ws.onerror = (e) => {
+                    log('WebSocket error', 'error');
+                    updateConnectionStatus(false);
+                };
+            } catch (e) {
+                log(`Connection failed: ${e.message}`, 'error');
+                updateConnectionStatus(false);
+            }
+        }
+        
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            updateConnectionStatus(false);
+        }
+        
+        function updateConnectionStatus(isConnected) {
+            connected = isConnected;
+            document.getElementById('status-dot').className = `status-dot ${isConnected ? 'connected' : ''}`;
+            document.getElementById('status-text').textContent = isConnected ? 'Connected' : 'Disconnected';
+            document.getElementById('join-btn').textContent = isConnected ? 'Disconnect' : 'Connect';
+            document.getElementById('join-btn').disabled = false;
+        }
+        
+        // Message handling
+        function handleMessage(msg) {
+            switch (msg.type) {
+                case 'session_joined':
+                    userId = msg.user_id;
+                    authorId = msg.author_id;
+                    generation = msg.generation;
+                    log(`Joined session as author ${authorId}`, 'success');
+                    document.getElementById('gen-count').textContent = generation;
+                    
+                    msg.users.forEach(u => {
+                        users[u.user_id] = {
+                            id: u.user_id,
+                            name: u.display_name,
+                            color: u.color ? `rgb(${u.color.r},${u.color.g},${u.color.b})` : '#3b82f6'
+                        };
+                    });
+                    updateUserList();
+                    break;
+                    
+                case 'user_joined':
+                    users[msg.user.user_id] = {
+                        id: msg.user.user_id,
+                        name: msg.user.display_name,
+                        color: msg.user.color ? `rgb(${msg.user.color.r},${msg.user.color.g},${msg.user.color.b})` : '#3b82f6'
+                    };
+                    log(`${msg.user.display_name} joined`, 'info');
+                    updateUserList();
+                    break;
+                    
+                case 'user_left':
+                    const leftUser = users[msg.user_id];
+                    if (leftUser) {
+                        log(`${leftUser.name} left`, 'info');
+                        delete users[msg.user_id];
+                        delete cursors[msg.user_id];
+                    }
+                    updateUserList();
+                    drawCursors();
+                    break;
+                    
+                case 'operation':
+                    handleOperation(msg.op, msg.from_user);
+                    break;
+                    
+                case 'operation_batch':
+                    msg.ops.forEach(op => handleOperation(op, msg.from_user));
+                    break;
+                    
+                case 'operation_ack':
+                    // Operation acknowledged
+                    break;
+                    
+                case 'presence_update':
+                    if (msg.user_id !== userId && msg.cursor) {
+                        cursors[msg.user_id] = msg.cursor;
+                        drawCursors();
+                    }
+                    break;
+                    
+                case 'undo_result':
+                    if (msg.success) {
+                        log('Undo successful', 'op');
+                    }
+                    break;
+                    
+                case 'redo_result':
+                    if (msg.success) {
+                        log('Redo successful', 'op');
+                    }
+                    break;
+                    
+                case 'error':
+                    log(`Error: ${msg.message}`, 'error');
+                    break;
+            }
+        }
+        
+        function handleOperation(op, fromUser) {
+            opCount++;
+            document.getElementById('op-count').textContent = opCount;
+            
+            if (op.type === 'add_item' && op.stroke) {
+                strokes.push({
+                    ...op.stroke,
+                    userColor: users[fromUser]?.color || '#666'
+                });
+                redraw();
+            } else if (op.type === 'delete_items') {
+                strokes = strokes.filter(s => !op.item_ids.includes(s.id));
+                redraw();
+            }
+        }
+        
+        function updateUserList() {
+            const list = document.getElementById('users-list');
+            const userArray = Object.values(users);
+            
+            if (userArray.length === 0) {
+                list.innerHTML = '<div class="user-item" style="color: var(--text-secondary); font-style: italic;">No users connected</div>';
+                return;
+            }
+            
+            list.innerHTML = userArray.map(u => `
+                <div class="user-item">
+                    <div class="user-avatar" style="background: ${u.color}">
+                        ${u.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div class="user-info">
+                        <div class="user-name">
+                            ${u.name}
+                            ${u.id === userId ? '<span class="user-you">you</span>' : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Tool functions
+        function setTool(tool) {
+            currentTool = tool;
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`tool-${tool}`).classList.add('active');
+            
+            if (ws && connected) {
+                ws.send(JSON.stringify({ type: 'set_tool', tool }));
+            }
+        }
+        
+        function setColor(el) {
+            currentColor = el.dataset.color;
+            document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+            el.classList.add('active');
+        }
+        
+        function setStrokeWidth(width) {
+            strokeWidth = parseInt(width);
+        }
+        
+        function undo() {
+            if (ws && connected) {
+                ws.send(JSON.stringify({ type: 'undo' }));
+            }
+        }
+        
+        function redo() {
+            if (ws && connected) {
+                ws.send(JSON.stringify({ type: 'redo' }));
+            }
+        }
+        
+        // Drawing
+        function redraw() {
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid (optional)
+            ctx.strokeStyle = '#f0f0f0';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < canvas.width; x += 50) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            // Draw strokes
+            strokes.forEach(stroke => {
+                if (!stroke.points || stroke.points.length < 2) return;
+                
+                ctx.beginPath();
+                ctx.strokeStyle = colorMap[stroke.color] || stroke.userColor || '#000';
+                ctx.lineWidth = stroke.base_width || 3;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                
+                ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+                stroke.points.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+                ctx.stroke();
+            });
+            
+            // Draw current stroke
+            if (currentStroke.length > 1) {
+                ctx.beginPath();
+                ctx.strokeStyle = colorMap[currentColor] || '#000';
+                ctx.lineWidth = strokeWidth;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                
+                ctx.moveTo(currentStroke[0].x, currentStroke[0].y);
+                currentStroke.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+                ctx.stroke();
+            }
+        }
+        
+        function drawCursors() {
+            cursorCtx.clearRect(0, 0, cursorCanvas.width, cursorCanvas.height);
+            
+            // Remove old labels
+            document.querySelectorAll('.cursor-label').forEach(el => el.remove());
+            
+            Object.entries(cursors).forEach(([uid, cursor]) => {
+                if (!cursor || uid === userId) return;
+                
+                const user = users[uid];
+                const color = user?.color || '#888';
+                
+                // Draw cursor dot
+                cursorCtx.beginPath();
+                cursorCtx.fillStyle = color;
+                cursorCtx.arc(cursor.x, cursor.y, 6, 0, Math.PI * 2);
+                cursorCtx.fill();
+                
+                cursorCtx.beginPath();
+                cursorCtx.fillStyle = '#fff';
+                cursorCtx.arc(cursor.x, cursor.y, 3, 0, Math.PI * 2);
+                cursorCtx.fill();
+                
+                // Add name label
+                if (user) {
+                    const label = document.createElement('div');
+                    label.className = 'cursor-label';
+                    label.style.left = `${cursor.x}px`;
+                    label.style.top = `${cursor.y}px`;
+                    label.style.background = color;
+                    label.textContent = user.name;
+                    document.getElementById('canvas-container').appendChild(label);
+                }
+            });
+        }
+        
+        // Canvas events
+        canvas.addEventListener('mousedown', (e) => {
+            if (!connected) return;
+            
+            isDrawing = true;
+            currentStroke = [{
+                x: e.offsetX,
+                y: e.offsetY,
+                pressure: 1,
+                width: strokeWidth,
+                speed: 0,
+                direction: 0
+            }];
+            
+            ws.send(JSON.stringify({ type: 'start_drawing' }));
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            if (!connected) return;
+            
+            // Send cursor position
+            ws.send(JSON.stringify({
+                type: 'cursor_update',
+                position: {
+                    x: e.offsetX,
+                    y: e.offsetY,
+                    page_id: '00000000-0000-0000-0000-000000000000'
+                }
+            }));
+            
+            if (isDrawing) {
+                currentStroke.push({
+                    x: e.offsetX,
+                    y: e.offsetY,
+                    pressure: 1,
+                    width: strokeWidth,
+                    speed: 0,
+                    direction: 0
+                });
+                redraw();
+            }
+        });
+        
+        canvas.addEventListener('mouseup', (e) => {
+            if (!connected || !isDrawing) return;
+            
+            isDrawing = false;
+            
+            if (currentStroke.length > 1) {
+                const strokeId = crypto.randomUUID();
+                const stroke = {
+                    id: strokeId,
+                    pen_type: currentTool === 'marker' ? 'marker' : 'fineliner',
+                    color: currentColor,
+                    base_width: strokeWidth,
+                    points: currentStroke
+                };
+                
+                const op = {
+                    type: 'add_item',
+                    id: { author: authorId, sequence: opCount },
+                    layer_id: '00000000-0000-0000-0000-000000000000',
+                    stroke: stroke
+                };
+                
+                ws.send(JSON.stringify({ type: 'operation', op }));
+                
+                strokes.push({ ...stroke, userColor: users[userId]?.color || '#3b82f6' });
+                opCount++;
+                document.getElementById('op-count').textContent = opCount;
+            }
+            
+            currentStroke = [];
+            ws.send(JSON.stringify({ type: 'stop_drawing' }));
+            redraw();
+        });
+        
+        canvas.addEventListener('mouseleave', (e) => {
+            if (isDrawing) {
+                canvas.dispatchEvent(new MouseEvent('mouseup', e));
+            }
+        });
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'z') {
+                    e.preventDefault();
+                    if (e.shiftKey) {
+                        redo();
+                    } else {
+                        undo();
+                    }
+                } else if (e.key === 'y') {
+                    e.preventDefault();
+                    redo();
+                }
+            }
+        });
+        
+        // Initialize
+        document.getElementById('doc-id').value = crypto.randomUUID();
+        log('Ready. Enter server URL and click Connect.', 'info');
+    </script>
+</body>
+</html>

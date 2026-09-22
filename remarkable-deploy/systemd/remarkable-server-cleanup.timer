@@ -1,0 +1,11 @@
+[Unit]
+Description=reMarkable Server Cleanup Timer
+Documentation=https://github.com/coleleavitt/remarkable-server
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=3600
+
+[Install]
+WantedBy=timers.target

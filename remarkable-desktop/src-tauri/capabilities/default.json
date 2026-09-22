@@ -1,0 +1,55 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/tauri-v2.0.0-alpha.12/tooling/bundler/schema/capabilities-2.json",
+  "identifier": "default",
+  "description": "Main application capabilities",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:event:default",
+    "notification:default",
+    "notification:allow-notify",
+    "notification:allow-is-permission-granted",
+    "notification:allow-request-permission",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "fs:default",
+    {
+      "identifier": "fs:allow-read",
+      "allow": [
+        {
+          "path": "$HOME/**"
+        },
+        {
+          "path": "$DATA/**"
+        },
+        {
+          "path": "$CONFIG/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-write",
+      "allow": [
+        {
+          "path": "$HOME/**"
+        },
+        {
+          "path": "$DATA/**"
+        },
+        {
+          "path": "$CONFIG/**"
+        }
+      ]
+    },
+    "shell:default",
+    "shell:allow-open",
+    "store:default"
+  ]
+}

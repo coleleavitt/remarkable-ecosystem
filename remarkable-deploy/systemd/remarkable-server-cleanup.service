@@ -1,0 +1,9 @@
+[Unit]
+Description=reMarkable Server Cleanup
+Documentation=https://github.com/coleleavitt/remarkable-server
+
+[Service]
+Type=oneshot
+User=remarkable
+Group=remarkable
+ExecStart=/opt/remarkable-server/venv/bin/python -c "from remarkable.server import cleanup; cleanup('/var/lib/remarkable-server')"

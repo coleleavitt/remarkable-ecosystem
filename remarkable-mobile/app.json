@@ -1,0 +1,161 @@
+{
+  "expo": {
+    "name": "reMarkable Sync",
+    "slug": "remarkable-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "remarkable-sync",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.remarkable.sync",
+      "associatedDomains": [
+        "applinks:remarkable.local"
+      ],
+      "infoPlist": {
+        "NSDocumentsFolderUsageDescription": "Access documents for upload to reMarkable",
+        "LSSupportsOpeningDocumentsInPlace": true,
+        "UIFileSharingEnabled": true,
+        "UTImportedTypeDeclarations": [
+          {
+            "UTTypeConformsTo": [
+              "public.data"
+            ],
+            "UTTypeDescription": "PDF Document",
+            "UTTypeIdentifier": "com.adobe.pdf",
+            "UTTypeTagSpecification": {
+              "public.filename-extension": [
+                "pdf"
+              ]
+            }
+          },
+          {
+            "UTTypeConformsTo": [
+              "public.data"
+            ],
+            "UTTypeDescription": "EPUB Document",
+            "UTTypeIdentifier": "org.idpf.epub-container",
+            "UTTypeTagSpecification": {
+              "public.filename-extension": [
+                "epub"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "package": "com.remarkable.sync",
+      "permissions": [
+        "INTERNET",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ],
+      "intentFilters": [
+        {
+          "action": "android.intent.action.SEND",
+          "category": [
+            "android.intent.category.DEFAULT"
+          ],
+          "data": [
+            {
+              "mimeType": "application/pdf"
+            },
+            {
+              "mimeType": "application/epub+zip"
+            },
+            {
+              "mimeType": "application/x-mobipocket-ebook"
+            }
+          ]
+        },
+        {
+          "action": "android.intent.action.SEND_MULTIPLE",
+          "category": [
+            "android.intent.category.DEFAULT"
+          ],
+          "data": [
+            {
+              "mimeType": "application/pdf"
+            },
+            {
+              "mimeType": "application/epub+zip"
+            }
+          ]
+        },
+        {
+          "action": "android.intent.action.VIEW",
+          "category": [
+            "android.intent.category.DEFAULT",
+            "android.intent.category.BROWSABLE"
+          ],
+          "data": [
+            {
+              "scheme": "file",
+              "mimeType": "application/pdf"
+            },
+            {
+              "scheme": "content",
+              "mimeType": "application/pdf"
+            },
+            {
+              "scheme": "file",
+              "mimeType": "application/epub+zip"
+            },
+            {
+              "scheme": "content",
+              "mimeType": "application/epub+zip"
+            }
+          ]
+        }
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#000000"
+        }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ],
+      "./plugins/withShareExtension"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "remarkable-mobile"
+      }
+    }
+  }
+}

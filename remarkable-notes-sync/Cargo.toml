@@ -1,0 +1,77 @@
+[package]
+name = "remarkable-notes-sync"
+version = "0.1.0"
+edition = "2024"
+authors = ["Cole Leavitt"]
+description = "Bidirectional sync between reMarkable, Obsidian, and Notion"
+license = "MIT"
+repository = "https://github.com/coleleavitt/remarkable-notes-sync"
+
+[lib]
+name = "remarkable_sync"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "remarkable-sync"
+path = "src/main.rs"
+
+[dependencies]
+# Core
+tokio = { version = "1", features = ["full"] }
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# HTTP/API
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+http = "1"
+
+# File watching
+notify = "7"
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+shellexpand = "3"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Binary parsing
+byteorder = "1"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# UUID
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Config
+directories = "5"
+
+# Hash computation
+sha2 = "0.10"
+hex = "0.4"
+
+# Base64
+base64 = "0.22"
+
+[dev-dependencies]
+tempfile = "3"
+tokio-test = "0.4"
+
+[features]
+default = []
+python = ["pyo3"]
+notion = []
+obsidian = []
+full = ["notion", "obsidian"]
+
+[dependencies.pyo3]
+version = "0.24"
+features = ["extension-module", "abi3-py39"]
+optional = true
+
+[profile.release]
+lto = true
+codegen-units = 1

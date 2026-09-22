@@ -1,0 +1,29 @@
+# Development overrides
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  server:
+    build:
+      context: .
+      target: runtime
+    volumes:
+      - ./remarkable:/app/remarkable:ro
+      - ./data:/data
+      - ./certs:/certs
+    environment:
+      - RM_LOG_LEVEL=debug
+      - RM_DEBUG_ENDPOINTS=true
+    ports:
+      - "8080:8080"
+
+  portal:
+    build:
+      context: ./portal
+    volumes:
+      - ./portal/src:/app/src:ro
+    environment:
+      - VITE_API_URL=http://localhost:8080
+    ports:
+      - "3000:3000"
+
+  # No Caddy in dev - direct access

@@ -1,0 +1,528 @@
+#!/usr/bin/env python3
+"""
+reMarkable D-Bus MDM CLI
+
+Manage reMarkable device policies via D-Bus over SSH.
+Exploits lack of ACL on com.remarkable.devicepolicy.MDMAgent1.
+
+Usage:
+    remarkable-mdm enable-ssh
+    remarkable-mdm disable-ssh
+    remarkable-mdm set-passcode <code>
+    remarkable-mdm clear-passcode
+    remarkable-mdm get-policies
+    remarkable-mdm set-policy <name> <value>
+    remarkable-mdm introspect
+    remarkable-mdm status
+"""
+
+import argparse
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+from typing import Optional, Tuple
+
+DEVICE_IP = "10.11.99.1"
+DBUS_DEST = "com.remarkable.devicepolicy.MDMAgent1"
+DBUS_PATH = "/"
+DBUS_IFACE = "com.remarkable.devicepolicy.MDMAgent1"
+
+# Known policy names from binary analysis
+KNOWN_POLICIES = {
+    "ssh": "SSHPolicy",
+    "sshpolicy": "SSHPolicy",
+    "pincode": "PincodePolicy",
+    "pincodepolicy": "PincodePolicy",
+    "passcode": "PincodePolicy",
+    "retail": "RetailPolicy",
+    "retailpolicy": "RetailPolicy",
+    "logout": "LogoutPolicy",
+    "logoutpolicy": "LogoutPolicy",
+    "autoupdate": "SoftwareAutoInstallPolicy",
+    "softwareautoinstallpolicy": "SoftwareAutoInstallPolicy",
+    "autosleep": "AutosleepDelayDevicePolicy",
+    "autosleepdelaydevicepolicy": "AutosleepDelayDevicePolicy",
+    "developermode": "DeveloperModePolicy",
+    "developermodePolicy": "DeveloperModePolicy",
+}
+
+
+def ssh_cmd(cmd: str, device: str = DEVICE_IP) -> Tuple[str, str, int]:
+    """Execute command on device via SSH."""
+    full_cmd = ["ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=accept-new",
+                f"root@{device}", cmd]
+    result = subprocess.run(full_cmd, capture_output=True, text=True)
+    return result.stdout, result.stderr, result.returncode
+
+
+def dbus_call(method: str, *args, device: str = DEVICE_IP) -> Tuple[str, str, int]:
+    """Execute D-Bus method call on device."""
+    dbus_cmd = [
+        "dbus-send", "--system", "--print-reply",
+        f"--dest={DBUS_DEST}", DBUS_PATH,
+        f"{DBUS_IFACE}.{method}"
+    ]
+    dbus_cmd.extend(args)
+    cmd_str = " ".join(f"'{a}'" if " " in a else a for a in dbus_cmd)
+    return ssh_cmd(cmd_str, device)
+
+
+def dbus_introspect(device: str = DEVICE_IP) -> Tuple[str, str, int]:
+    """Introspect the D-Bus interface."""
+    cmd = f"dbus-send --system --print-reply --dest={DBUS_DEST} {DBUS_PATH} org.freedesktop.DBus.Introspectable.Introspect"
+    return ssh_cmd(cmd, device)
+
+
+def dbus_get_property(prop: str, device: str = DEVICE_IP) -> Tuple[str, str, int]:
+    """Get D-Bus property value."""
+    cmd = f"dbus-send --system --print-reply --dest={DBUS_DEST} {DBUS_PATH} org.freedesktop.DBus.Properties.Get string:'{DBUS_IFACE}' string:'{prop}'"
+    return ssh_cmd(cmd, device)
+
+
+def dbus_set_property(prop: str, sig: str, value: str, device: str = DEVICE_IP) -> Tuple[str, str, int]:
+    """Set D-Bus property value."""
+    cmd = f"dbus-send --system --print-reply --dest={DBUS_DEST} {DBUS_PATH} org.freedesktop.DBus.Properties.Set string:'{DBUS_IFACE}' string:'{prop}' variant:{sig}:{value}"
+    return ssh_cmd(cmd, device)
+
+
+def parse_dbus_response(output: str) -> dict:
+    """Parse D-Bus response into structured data."""
+    result = {}
+    lines = output.strip().split("\n")
+    current_key = None
+    
+    for line in lines:
+        line = line.strip()
+        if line.startswith("method return"):
+            continue
+        if "string" in line and '"' in line:
+            # Extract string value
+            start = line.find('"') + 1
+            end = line.rfind('"')
+            if start > 0 and end > start:
+                val = line[start:end]
+                if current_key:
+                    result[current_key] = val
+                    current_key = None
+                else:
+                    current_key = val
+        elif "boolean" in line:
+            val = "true" in line.lower()
+            if current_key:
+                result[current_key] = val
+                current_key = None
+        elif "int32" in line or "uint32" in line:
+            parts = line.split()
+            for p in parts:
+                if p.isdigit() or (p.startswith("-") and p[1:].isdigit()):
+                    if current_key:
+                        result[current_key] = int(p)
+                        current_key = None
+                    break
+    
+    return result
+
+
+def normalize_policy_name(name: str) -> str:
+    """Normalize policy name to canonical form."""
+    lower = name.lower().replace("-", "").replace("_", "")
+    return KNOWN_POLICIES.get(lower, name)
+
+
+def cmd_enable_ssh(args):
+    """Enable SSH access via SSHPolicy."""
+    print("[*] Enabling SSH via D-Bus MDM interface...")
+    
+    # Try SetPolicyStatus method first
+    stdout, stderr, rc = dbus_call("SetPolicyStatus", 
+                                    "string:SSHPolicy", 
+                                    "variant:boolean:false",  # false = NOT blocked
+                                    device=args.device)
+    
+    if rc == 0 and "Error" not in stderr:
+        print("[+] SSH enabled successfully")
+        print(stdout)
+        return 0
+    
+    # Try property-based approach
+    stdout, stderr, rc = dbus_set_property("blockSsh", "boolean", "false", device=args.device)
+    if rc == 0 and "Error" not in stderr:
+        print("[+] SSH enabled via property")
+        print(stdout)
+        return 0
+    
+    # Try BlockSSH variant
+    stdout, stderr, rc = dbus_set_property("BlockSSH", "boolean", "false", device=args.device)
+    if rc == 0 and "Error" not in stderr:
+        print("[+] SSH enabled via BlockSSH property")
+        print(stdout)
+        return 0
+    
+    print(f"[-] Failed to enable SSH")
+    print(f"    stdout: {stdout}")
+    print(f"    stderr: {stderr}")
+    return 1
+
+
+def cmd_disable_ssh(args):
+    """Disable SSH access via SSHPolicy."""
+    print("[!] WARNING: This may lock you out of the device!")
+    if not args.force:
+        confirm = input("    Type 'yes' to confirm: ")
+        if confirm.lower() != "yes":
+            print("[-] Aborted")
+            return 1
+    
+    print("[*] Disabling SSH via D-Bus MDM interface...")
+    
+    stdout, stderr, rc = dbus_call("SetPolicyStatus",
+                                    "string:SSHPolicy",
+                                    "variant:boolean:true",  # true = blocked
+                                    device=args.device)
+    
+    if rc == 0 and "Error" not in stderr:
+        print("[+] SSH disabled successfully")
+        print(stdout)
+        return 0
+    
+    stdout, stderr, rc = dbus_set_property("blockSsh", "boolean", "true", device=args.device)
+    if rc == 0 and "Error" not in stderr:
+        print("[+] SSH disabled via property")
+        print(stdout)
+        return 0
+    
+    print(f"[-] Failed to disable SSH")
+    print(f"    stdout: {stdout}")
+    print(f"    stderr: {stderr}")
+    return 1
+
+
+def cmd_set_passcode(args):
+    """Set device passcode via PincodePolicy."""
+    code = args.code
+    
+    if not code.isdigit() or len(code) < 4:
+        print("[-] Passcode must be at least 4 digits")
+        return 1
+    
+    print(f"[*] Setting passcode to {code}...")
+    print("[!] Note: Device passcode IS the root password")
+    
+    # Try direct method call
+    stdout, stderr, rc = dbus_call("SetPolicyStatus",
+                                    "string:PincodePolicy",
+                                    f"variant:string:{code}",
+                                    device=args.device)
+    
+    if rc == 0 and "Error" not in stderr:
+        print("[+] Passcode set successfully")
+        print(stdout)
+        return 0
+    
+    # Try SetPasscode method
+    stdout, stderr, rc = dbus_call("SetPasscode", f"string:{code}", device=args.device)
+    if rc == 0 and "Error" not in stderr:
+        print("[+] Passcode set via SetPasscode method")
+        print(stdout)
+        return 0
+    
+    print(f"[-] Failed to set passcode")
+    print(f"    stdout: {stdout}")
+    print(f"    stderr: {stderr}")
+    print("[i] May need introspection to determine exact method signature")
+    return 1
+
+
+def cmd_clear_passcode(args):
+    """Remove passcode requirement."""
+    print("[*] Clearing passcode requirement...")
+    print("[!] WARNING: This removes root password protection!")
+    
+    if not args.force:
+        confirm = input("    Type 'yes' to confirm: ")
+        if confirm.lower() != "yes":
+            print("[-] Aborted")
+            return 1
+    
+    # Try disabling pincode policy
+    stdout, stderr, rc = dbus_call("SetPolicyStatus",
+                                    "string:PincodePolicy",
+                                    "variant:boolean:false",
+                                    device=args.device)
+    
+    if rc == 0 and "Error" not in stderr:
+        print("[+] Passcode requirement cleared")
+        print(stdout)
+        return 0
+    
+    # Try ClearPasscode method
+    stdout, stderr, rc = dbus_call("ClearPasscode", device=args.device)
+    if rc == 0 and "Error" not in stderr:
+        print("[+] Passcode cleared via ClearPasscode method")
+        print(stdout)
+        return 0
+    
+    print(f"[-] Failed to clear passcode")
+    print(f"    stdout: {stdout}")
+    print(f"    stderr: {stderr}")
+    return 1
+
+
+def cmd_get_policies(args):
+    """List all MDM policies."""
+    print("[*] Querying MDM policies...")
+    
+    # Try GetPolicies method
+    stdout, stderr, rc = dbus_call("GetPolicies", device=args.device)
+    if rc == 0:
+        print("[+] GetPolicies response:")
+        print(stdout)
+        policies = parse_dbus_response(stdout)
+        if policies:
+            print("\n[+] Parsed policies:")
+            for k, v in policies.items():
+                print(f"    {k}: {v}")
+        return 0
+    
+    # Try GetEnrolledState
+    print("\n[*] Trying GetEnrolledState...")
+    stdout, stderr, rc = dbus_call("GetEnrolledState", device=args.device)
+    if rc == 0:
+        print("[+] Enrollment state:")
+        print(stdout)
+    
+    # Try reading individual properties
+    print("\n[*] Querying known properties...")
+    props = ["blockSsh", "BlockSSH", "blockDeveloperMode", "BlockDeveloperMode",
+             "blockRetail", "BlockRetail", "blockUnpairing", "BlockUnpairing",
+             "mdmEnabled", "MdmEnabled", "autosleepDelayDevicePolicy"]
+    
+    for prop in props:
+        stdout, stderr, rc = dbus_get_property(prop, device=args.device)
+        if rc == 0 and "Error" not in stderr:
+            print(f"    {prop}: {stdout.strip()}")
+    
+    return 0
+
+
+def cmd_set_policy(args):
+    """Set a specific policy value."""
+    policy = normalize_policy_name(args.name)
+    value = args.value.lower()
+    
+    print(f"[*] Setting {policy} to {value}...")
+    
+    # Determine value type
+    if value in ("true", "false", "1", "0", "yes", "no"):
+        bool_val = value in ("true", "1", "yes")
+        stdout, stderr, rc = dbus_call("SetPolicyStatus",
+                                        f"string:{policy}",
+                                        f"variant:boolean:{str(bool_val).lower()}",
+                                        device=args.device)
+    elif value.isdigit():
+        stdout, stderr, rc = dbus_call("SetPolicyStatus",
+                                        f"string:{policy}",
+                                        f"variant:int32:{value}",
+                                        device=args.device)
+    else:
+        stdout, stderr, rc = dbus_call("SetPolicyStatus",
+                                        f"string:{policy}",
+                                        f"variant:string:{value}",
+                                        device=args.device)
+    
+    if rc == 0 and "Error" not in stderr:
+        print(f"[+] Policy {policy} set successfully")
+        print(stdout)
+        return 0
+    
+    print(f"[-] Failed to set policy")
+    print(f"    stdout: {stdout}")
+    print(f"    stderr: {stderr}")
+    return 1
+
+
+def cmd_introspect(args):
+    """Introspect the D-Bus interface to discover methods."""
+    print("[*] Introspecting MDM D-Bus interface...")
+    
+    stdout, stderr, rc = dbus_introspect(device=args.device)
+    
+    if rc != 0:
+        print(f"[-] Introspection failed (rc={rc})")
+        print(f"    stderr: {stderr}")
+        return 1
+    
+    # Extract XML from D-Bus response
+    lines = stdout.split("\n")
+    xml_lines = []
+    in_xml = False
+    
+    for line in lines:
+        if "<node" in line or in_xml:
+            in_xml = True
+            # Extract string content
+            if 'string "' in line:
+                start = line.find('string "') + 8
+                end = line.rfind('"')
+                xml_lines.append(line[start:end])
+            elif line.strip().startswith("<") or line.strip().startswith("</"):
+                xml_lines.append(line.strip())
+    
+    if xml_lines:
+        xml_str = "\n".join(xml_lines)
+        print("[+] Interface XML:")
+        print(xml_str)
+        
+        # Try to parse and summarize
+        try:
+            # Clean up escape sequences
+            xml_clean = xml_str.replace("\\n", "\n").replace('\\"', '"')
+            root = ET.fromstring(xml_clean)
+            
+            print("\n[+] Available interfaces:")
+            for iface in root.findall(".//interface"):
+                name = iface.get("name")
+                print(f"\n  Interface: {name}")
+                
+                for method in iface.findall("method"):
+                    mname = method.get("name")
+                    args_in = []
+                    args_out = []
+                    for arg in method.findall("arg"):
+                        aname = arg.get("name", "")
+                        atype = arg.get("type", "")
+                        direction = arg.get("direction", "in")
+                        if direction == "in":
+                            args_in.append(f"{aname}:{atype}")
+                        else:
+                            args_out.append(f"{aname}:{atype}")
+                    print(f"    Method: {mname}({', '.join(args_in)}) -> ({', '.join(args_out)})")
+                
+                for prop in iface.findall("property"):
+                    pname = prop.get("name")
+                    ptype = prop.get("type")
+                    access = prop.get("access", "read")
+                    print(f"    Property: {pname} ({ptype}, {access})")
+                
+                for signal in iface.findall("signal"):
+                    sname = signal.get("name")
+                    print(f"    Signal: {sname}")
+        except ET.ParseError as e:
+            print(f"[i] Could not parse XML: {e}")
+    else:
+        print("[+] Raw response:")
+        print(stdout)
+    
+    return 0
+
+
+def cmd_status(args):
+    """Get overall MDM status."""
+    print("[*] Checking MDM status...")
+    print(f"    Device: {args.device}")
+    
+    # Check SSH connectivity
+    stdout, stderr, rc = ssh_cmd("echo connected", device=args.device)
+    if rc != 0:
+        print(f"[-] Cannot connect to device: {stderr}")
+        return 1
+    print("[+] SSH connection OK")
+    
+    # Check D-Bus service
+    stdout, stderr, rc = ssh_cmd(f"busctl status {DBUS_DEST} 2>/dev/null || dbus-send --system --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.GetNameOwner string:{DBUS_DEST}", device=args.device)
+    if "Error" in stderr or "does not exist" in stderr:
+        print(f"[-] MDM service not running or not registered")
+    else:
+        print("[+] MDM D-Bus service found")
+    
+    # Get enrollment state
+    stdout, stderr, rc = dbus_call("GetEnrolledState", device=args.device)
+    if rc == 0 and "Error" not in stderr:
+        print(f"[+] MDM Enrollment: {stdout.strip()}")
+    else:
+        print(f"[?] Enrollment state unknown")
+    
+    # Check xochitl running
+    stdout, stderr, rc = ssh_cmd("pidof xochitl", device=args.device)
+    if stdout.strip():
+        print(f"[+] xochitl running (PID: {stdout.strip()})")
+    else:
+        print("[-] xochitl not running")
+    
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="reMarkable D-Bus MDM CLI - Device policy management",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Known Policies:
+  SSHPolicy                    - Enable/disable SSH access
+  PincodePolicy                - Passcode requirements (= root password!)
+  RetailPolicy                 - Demo mode settings
+  LogoutPolicy                 - Session logout behavior
+  SoftwareAutoInstallPolicy    - Auto-update control
+  DeveloperModePolicy          - Developer mode access
+  AutosleepDelayDevicePolicy   - Power management
+
+Examples:
+  %(prog)s status
+  %(prog)s introspect
+  %(prog)s enable-ssh
+  %(prog)s get-policies
+  %(prog)s set-policy SSHPolicy false
+  %(prog)s set-passcode 1234
+
+WARNING: Device passcode IS the Linux root password!
+"""
+    )
+    
+    parser.add_argument("-d", "--device", default=DEVICE_IP,
+                        help=f"Device IP address (default: {DEVICE_IP})")
+    parser.add_argument("-f", "--force", action="store_true",
+                        help="Skip confirmation prompts")
+    
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    
+    # enable-ssh
+    p = subparsers.add_parser("enable-ssh", help="Enable SSH access")
+    p.set_defaults(func=cmd_enable_ssh)
+    
+    # disable-ssh
+    p = subparsers.add_parser("disable-ssh", help="Disable SSH access (DANGEROUS)")
+    p.set_defaults(func=cmd_disable_ssh)
+    
+    # set-passcode
+    p = subparsers.add_parser("set-passcode", help="Set device passcode")
+    p.add_argument("code", help="Numeric passcode (min 4 digits)")
+    p.set_defaults(func=cmd_set_passcode)
+    
+    # clear-passcode
+    p = subparsers.add_parser("clear-passcode", help="Remove passcode requirement")
+    p.set_defaults(func=cmd_clear_passcode)
+    
+    # get-policies
+    p = subparsers.add_parser("get-policies", help="List all MDM policies")
+    p.set_defaults(func=cmd_get_policies)
+    
+    # set-policy
+    p = subparsers.add_parser("set-policy", help="Set a specific policy")
+    p.add_argument("name", help="Policy name (e.g., SSHPolicy)")
+    p.add_argument("value", help="Policy value")
+    p.set_defaults(func=cmd_set_policy)
+    
+    # introspect
+    p = subparsers.add_parser("introspect", help="Introspect D-Bus interface")
+    p.set_defaults(func=cmd_introspect)
+    
+    # status
+    p = subparsers.add_parser("status", help="Get MDM status")
+    p.set_defaults(func=cmd_status)
+    
+    args = parser.parse_args()
+    sys.exit(args.func(args))
+
+
+if __name__ == "__main__":
+    main()

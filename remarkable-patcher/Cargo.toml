@@ -1,0 +1,34 @@
+[package]
+name = "remarkable-patcher"
+version = "0.1.0"
+edition = "2024"
+description = "Binary patcher for reMarkable xochitl firmware modifications"
+authors = ["remarkable-rs contributors"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/remarkable-rs/remarkable-patcher"
+keywords = ["remarkable", "firmware", "patcher", "binary"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+clap = { version = "4", features = ["derive", "env"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+hex = "0.4"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+object = "0.36"
+regex = "1"
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "6"
+colored = "3"
+
+[dev-dependencies]
+tempfile = "3"
+assert_cmd = "2"
+predicates = "3"
+
+[[bin]]
+name = "rm-patcher"
+path = "src/main.rs"

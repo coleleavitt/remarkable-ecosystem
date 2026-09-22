@@ -1,0 +1,8 @@
+{
+  "note": "Replace these with actual PNG images before building",
+  "icon.png": "1024x1024 app icon",
+  "splash.png": "1284x2778 splash screen",
+  "adaptive-icon.png": "1024x1024 Android adaptive icon foreground",
+  "favicon.png": "48x48 web favicon",
+  "notification-icon.png": "96x96 notification icon (white on transparent)"
+}
