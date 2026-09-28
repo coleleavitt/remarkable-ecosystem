@@ -103,3 +103,22 @@ def test_insecure_is_explicit_and_warns(https_server, caplog) -> None:
     with caplog.at_level(logging.WARNING, logger="remarkable.local"):
         assert _get(LocalServerClient(url, verify_ssl=False), url).status_code == 200
     assert "verification is OFF" in caplog.text
+
+
+def test_trusting_a_certificate_and_skipping_verification_conflict(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        LocalServerClient("https://127.0.0.1:1", ca_cert=tmp_path / "ca.pem", verify_ssl=False)
+
+
+def test_the_cli_rejects_ca_cert_with_insecure(monkeypatch, capsys) -> None:
+    from remarkable import cli
+
+    for command in ("pair", "sync"):
+        monkeypatch.setattr(
+            "sys.argv",
+            ["remarkable", command, "--local", "https://x", "--ca-cert", "ca.pem", "--insecure"],
+        )
+        with pytest.raises(SystemExit) as exit:
+            cli.main()
+        assert exit.value.code == 2
+        assert "not allowed with argument" in capsys.readouterr().err

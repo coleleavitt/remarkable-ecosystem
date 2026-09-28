@@ -114,6 +114,10 @@ class LocalServerClient:
                 certificate's subjectAltName). Implies verification.
             timeout: HTTP request timeout in seconds
         """
+        if ca_cert is not None and not verify_ssl:
+            # Trusting a certificate and not checking one contradict each other;
+            # silently picking either would surprise whoever passed both.
+            raise ValueError("ca_cert and verify_ssl=False are mutually exclusive")
         self.server_url = server_url.rstrip("/")
         self.verify_ssl = verify_ssl
         self.ca_cert = Path(ca_cert) if ca_cert is not None else None

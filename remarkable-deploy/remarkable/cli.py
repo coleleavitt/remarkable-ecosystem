@@ -41,12 +41,13 @@ def main() -> int:
         nargs="?",
         help="Pairing code (optional, will request one if not provided)",
     )
-    pair_parser.add_argument(
+    pair_parser_tls = pair_parser.add_mutually_exclusive_group()
+    pair_parser_tls.add_argument(
         "--ca-cert",
         metavar="PATH",
         help="CA bundle or the local server's self-signed certificate to trust",
     )
-    pair_parser.add_argument(
+    pair_parser_tls.add_argument(
         "--insecure",
         action="store_true",
         help="Do not verify the local server's TLS certificate (tokens go to whoever answers)",
@@ -93,12 +94,13 @@ def main() -> int:
         default="tokens.json",
         help="Token file path",
     )
-    sync_parser.add_argument(
+    sync_parser_tls = sync_parser.add_mutually_exclusive_group()
+    sync_parser_tls.add_argument(
         "--ca-cert",
         metavar="PATH",
         help="CA bundle or the local server's self-signed certificate to trust",
     )
-    sync_parser.add_argument(
+    sync_parser_tls.add_argument(
         "--insecure",
         action="store_true",
         help="Do not verify the local server's TLS certificate (tokens go to whoever answers)",
