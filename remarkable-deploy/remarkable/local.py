@@ -94,7 +94,8 @@ class LocalServerClient:
         *,
         device_id: str | None = None,
         device_name: str = "remarkable-sdk",
-        verify_ssl: bool = False,
+        verify_ssl: bool = True,
+        ca_cert: str | Path | None = None,
         timeout: float = 30.0,
     ) -> None:
         """
@@ -104,11 +105,22 @@ class LocalServerClient:
             server_url: URL of the local server (e.g., "http://192.168.1.100:8080")
             device_id: Unique device identifier (generated if not provided)
             device_name: Human-readable device name for pairing
-            verify_ssl: Whether to verify SSL certificates (False for self-signed)
+            verify_ssl: Verify the server's TLS certificate (the default). Turning
+                it off sends pairing codes and tokens to whoever answers — any
+                host on the LAN can advertise itself over mDNS — so prefer
+                `ca_cert` for a self-signed server.
+            ca_cert: A CA bundle, or the self-signed server's own certificate,
+                to trust for this server (its name or IP must be in the
+                certificate's subjectAltName). Implies verification.
             timeout: HTTP request timeout in seconds
         """
+        if ca_cert is not None and not verify_ssl:
+            # Trusting a certificate and not checking one contradict each other;
+            # silently picking either would surprise whoever passed both.
+            raise ValueError("ca_cert and verify_ssl=False are mutually exclusive")
         self.server_url = server_url.rstrip("/")
         self.verify_ssl = verify_ssl
+        self.ca_cert = Path(ca_cert) if ca_cert is not None else None
         self.timeout = timeout
         
         self._device_info = DeviceInfo(
@@ -127,19 +139,21 @@ class LocalServerClient:
         return f"RM-LOCAL-{uuid4().hex[:8].upper()}"
     
     def _create_http_client(self) -> httpx.AsyncClient:
-        """Create HTTP client with appropriate SSL settings."""
-        if self.verify_ssl:
-            return httpx.AsyncClient(timeout=self.timeout)
-        
-        # Create SSL context that accepts self-signed certs
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
-        
-        return httpx.AsyncClient(
-            timeout=self.timeout,
-            verify=False,  # For self-signed certs
-        )
+        """Create the HTTP client: certificates verified unless explicitly not."""
+        verify: ssl.SSLContext | bool
+        if self.ca_cert is not None:
+            # Trust exactly this CA (or self-signed certificate) for the server.
+            verify = ssl.create_default_context(cafile=str(self.ca_cert))
+        elif self.verify_ssl:
+            verify = True
+        else:
+            logger.warning(
+                "TLS certificate verification is OFF for %s: pairing codes and tokens go to "
+                "whoever answers. Pass ca_cert (CLI: --ca-cert) to trust a self-signed server.",
+                self.server_url,
+            )
+            verify = False
+        return httpx.AsyncClient(timeout=self.timeout, verify=verify)
     
     @property
     def http(self) -> httpx.AsyncClient:
@@ -612,7 +626,7 @@ async def scan_local_network(
     async def check_host(host: str, port: int) -> LocalServerInfo | None:
         url = f"http://{host}:{port}"
         try:
-            async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 resp = await client.get(f"{url}/health")
                 if resp.status_code == 200:
                     logger.info(f"Found server at {url}")
@@ -690,6 +704,8 @@ async def pair_with_local_server(
     *,
     device_name: str = "remarkable-sdk",
     token_path: Path | str | None = None,
+    verify_ssl: bool = True,
+    ca_cert: str | Path | None = None,
 ) -> tuple[LocalServerClient, TokenPair]:
     """
     Pair with a local server and optionally save tokens.
@@ -706,6 +722,8 @@ async def pair_with_local_server(
     client = LocalServerClient(
         server_url,
         device_name=device_name,
+        verify_ssl=verify_ssl,
+        ca_cert=ca_cert,
     )
     
     if code:

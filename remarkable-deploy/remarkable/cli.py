@@ -41,6 +41,17 @@ def main() -> int:
         nargs="?",
         help="Pairing code (optional, will request one if not provided)",
     )
+    pair_parser_tls = pair_parser.add_mutually_exclusive_group()
+    pair_parser_tls.add_argument(
+        "--ca-cert",
+        metavar="PATH",
+        help="CA bundle or the local server's self-signed certificate to trust",
+    )
+    pair_parser_tls.add_argument(
+        "--insecure",
+        action="store_true",
+        help="Do not verify the local server's TLS certificate (tokens go to whoever answers)",
+    )
     pair_parser.add_argument(
         "--local", "-l",
         metavar="URL",
@@ -82,6 +93,17 @@ def main() -> int:
         "--tokens", "-t",
         default="tokens.json",
         help="Token file path",
+    )
+    sync_parser_tls = sync_parser.add_mutually_exclusive_group()
+    sync_parser_tls.add_argument(
+        "--ca-cert",
+        metavar="PATH",
+        help="CA bundle or the local server's self-signed certificate to trust",
+    )
+    sync_parser_tls.add_argument(
+        "--insecure",
+        action="store_true",
+        help="Do not verify the local server's TLS certificate (tokens go to whoever answers)",
     )
     sync_parser.add_argument(
         "--local", "-l",
@@ -256,6 +278,14 @@ async def cmd_pair(args) -> int:
         return 1
 
 
+def _tls(args) -> dict:
+    """TLS options for a local server client from --ca-cert/--insecure."""
+    return {
+        "verify_ssl": not getattr(args, "insecure", False),
+        "ca_cert": getattr(args, "ca_cert", None),
+    }
+
+
 async def cmd_pair_local(args, token_path: Path) -> int:
     """Pair with a local server."""
     from remarkable.local import LocalServerClient
@@ -265,7 +295,7 @@ async def cmd_pair_local(args, token_path: Path) -> int:
     
     print(f"Connecting to local server: {server_url}")
     
-    async with LocalServerClient(server_url, device_name=device_name) as client:
+    async with LocalServerClient(server_url, device_name=device_name, **_tls(args)) as client:
         # Verify connection
         if not await client.verify_connection():
             logger.error(f"Cannot connect to server at {server_url}")
@@ -319,7 +349,7 @@ async def cmd_pair_discover(args, token_path: Path) -> int:
     
     device_name = getattr(args, "name", "remarkable-cli")
     
-    async with LocalServerClient(server.url, device_name=device_name) as client:
+    async with LocalServerClient(server.url, device_name=device_name, **_tls(args)) as client:
         if args.code:
             code = args.code
         else:
@@ -435,7 +465,7 @@ async def cmd_sync_local(args, token_path: Path) -> int:
     """Handle sync with local server."""
     from remarkable.local import LocalServerClient
     
-    async with LocalServerClient(args.local) as client:
+    async with LocalServerClient(args.local, **_tls(args)) as client:
         await client.load_tokens(token_path)
         
         if args.action == "root":
